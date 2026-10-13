@@ -1,8 +1,21 @@
-name: Check bot dashboard
+name: Check Python bot and website
 on: [push, pull_request]
 jobs:
-  test:
+  python:
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - run: python -m unittest discover -s tests_python
+      - run: python -m py_compile main.py bridge.py
+  website:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: website
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

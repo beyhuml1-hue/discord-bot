@@ -1,3 +1,4 @@
+import {runtime} from './runtime.mjs';
 import {gatewayTick} from './gateway.mjs';
 import verification, {VerificationRegistry as ExistingRegistry} from './verification.mjs';
 import {manager, interactions, configurePrimary, processAITickets, checkServerJoins, notifyTransfer, handlePrefix} from './manager.mjs';
@@ -5,6 +6,8 @@ export class VerificationRegistry extends ExistingRegistry {
   constructor(state,env){super(state,env);this.env=env;}
   async ensureAIAlarm(){await gatewayTick(this,this.env,this,handlePrefix);if(!await this.state.storage.getAlarm())await this.state.storage.setAlarm(Date.now()+1000);}
   async alarm(){await this.state.storage.setAlarm(Date.now()+15000);await gatewayTick(this,this.env,this,handlePrefix);await processAITickets(this.env,this);}
+  async runtimeLease(instance){return this.state.storage.transaction(async tx=>{const key='bot:python-runtime',old=await tx.get(key);if(old&&old.expires>Date.now()&&old.instance!==instance)return null;const lease={instance,expires:Date.now()+90000};await tx.put(key,lease);return lease;});}
+  async runtimeRelease(instance){return this.state.storage.transaction(async tx=>{const old=await tx.get('bot:python-runtime');if(old?.instance===instance)await tx.delete('bot:python-runtime');});}
   async aiReserve(channel,message){return this.state.storage.transaction(async tx=>{const key='bot:ai-claim:'+channel+':'+message,previous=await tx.get(key);if(previous&&!(previous.status==='generation_failed'&&Date.now()-previous.created_at>15000))return false;const day=new Date().toISOString().slice(0,10),budget=await tx.get('bot:ai-budget')||{day,count:0};if(budget.day!==day){budget.day=day;budget.count=0;}if(budget.count>=100)return false;budget.count++;await tx.put('bot:ai-budget',budget);await tx.put(key,{status:'reserved',created_at:Date.now()});return true;});}
   async aiStatus(){return {available:Boolean(this.env.AI),model:'@cf/meta/llama-3.2-3b-instruct',budget:await this.botGet('ai-budget')||null};}
   async botGet(key){return this.state.storage.get('bot:'+key);}
@@ -27,6 +30,7 @@ export default {
   async fetch(req,env,ctx){
     const u=new URL(req.url),r=env.REGISTRY.getByName('community');
     try{
+      if(u.origin===BOT&&u.pathname.startsWith('/api/runtime/'))return await runtime(req,env,r);
       if(u.origin===BOT&&u.pathname.startsWith('/interactions/'))return interactions(req,env,r,ctx);
       if(u.origin===VERIFY&&u.pathname==='/owner/start'){
         const n=u.searchParams.get('nonce');if(!/^[a-f0-9]{64}$/.test(n||''))return json({error:'Start sign-in from the bot dashboard.'},400);

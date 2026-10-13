@@ -1,4 +1,5 @@
 export async function gatewayTick(host,env,r,handlePrefix){
+ const lease=await r.botGet('python-runtime');if(lease?.expires>Date.now()){if(host.gateway){host.gateway.close(1000,'Python runtime active');host.gateway=null;await r.botPut('gateway-session',null);}await r.botPut('gateway-status',{ready:true,runtime:'python',at:Date.now()});return;}
  if(host.gateway?.readyState===1)return;
  if(host.gatewayConnecting)return;
  const stored=await r.botGet('gateway-session'),last=await r.botGet('gateway-attempt');if(last&&Date.now()-last.at<60000)return;
