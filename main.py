@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from bridge import WebsiteBridge
 
 log = logging.getLogger("verify_bot")
-PREFIX = re.compile(r"^!(stock|buy|say|setsection)\b", re.IGNORECASE)
+PREFIX = re.compile(r"^!(stock|buy|order|verify|say|setsection)\b", re.IGNORECASE)
 
 
 class VerifyBot(discord.Client):
@@ -38,7 +38,7 @@ class VerifyBot(discord.Client):
         try:
             await self.bridge.call("heartbeat")
             self.website_ready = True
-            log.info("Connected as %s. Website connected; !stock, !buy, !say and !setsection ready.", self.user)
+            log.info("Connected as %s. Website connected; !stock, !buy, !order, !verify, !say and !setsection ready.", self.user)
             if self.heartbeat_task is None or self.heartbeat_task.done():
                 self.heartbeat_task = asyncio.create_task(self.keep_website_connected())
         except Exception as exc:
