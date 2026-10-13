@@ -1,0 +1,42 @@
+{
+  "name": "verify-portal",
+  "keep_vars": true,
+  "ai": {"binding":"AI"},
+  "main": "worker.mjs",
+  "compatibility_date": "2026-10-10",
+  "account_id": "c7bafe49da51ae92601521edbd5bc2f7",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "html_handling": "none"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "REGISTRY",
+        "class_name": "VerificationRegistry"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "VerificationRegistry"
+      ]
+    }
+  ],
+  "vars": {
+    "DEFAULT_SERVER_ID": "1553398685587607614",
+    "DEFAULT_SERVER_NAME": "Donuts casino",
+    "INVITE_LOOKUPS": "{\"d7gH3mjvX\": {\"id\": \"1558584437896380496\", \"expires\": 1791753074406}}",
+    "PUBLIC_ORIGIN": "https://verify.lb000.xyz"
+  },
+  "triggers": {
+    "crons": [
+      "17 3 * * *",
+      "* * * * *"
+    ]
+  }
+}
