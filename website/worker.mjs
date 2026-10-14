@@ -1,11 +1,12 @@
 import {runtime} from './runtime.mjs';
 import {gatewayTick} from './gateway.mjs';
 import verification, {VerificationRegistry as ExistingRegistry} from './verification.mjs';
-import {manager, interactions, configurePrimary, processAITickets, checkServerJoins, notifyTransfer, handlePrefix} from './manager.mjs';
+import {manager, interactions, configurePrimary, processAITickets, checkServerJoins, notifyTransfer, handlePrefix, processMessageJobs} from './manager.mjs';
 export class VerificationRegistry extends ExistingRegistry {
   constructor(state,env){super(state,env);this.env=env;}
-  async ensureAIAlarm(){await gatewayTick(this,this.env,this,handlePrefix);if(!await this.state.storage.getAlarm())await this.state.storage.setAlarm(Date.now()+1000);}
-  async alarm(){await this.state.storage.setAlarm(Date.now()+15000);await gatewayTick(this,this.env,this,handlePrefix);await processAITickets(this.env,this);}
+  async ensureAIAlarm(){await gatewayTick(this,this.env,this,handlePrefix);const alarm=await this.state.storage.getAlarm();if(!alarm||alarm>Date.now()+1000)await this.state.storage.setAlarm(Date.now()+1000);}
+  async reserveMessage(job){return this.state.storage.transaction(async tx=>{const key='bot:message-job:'+job.id,row=await tx.get(key);if(!row?.active||row.removed||row.generation!==job.generation||row.next_at!==job.next_at||row.next_at>Date.now())return false;await tx.put(key,{...row,next_at:Date.now()+row.interval*1000});return true;});}
+  async alarm(){await this.state.storage.setAlarm(Date.now()+15000);await processMessageJobs(this.env,this);const last=await this.botGet('maintenance-at')||0;if(Date.now()-last>=15000){await this.botPut('maintenance-at',Date.now());await gatewayTick(this,this.env,this,handlePrefix);await processAITickets(this.env,this);}const jobs=(await this.botList('message-job:',100)).filter(j=>j.active&&!j.removed);await this.state.storage.setAlarm(Math.max(Date.now()+1000,Math.min(Date.now()+15000,...jobs.map(j=>j.next_at))));}
   async runtimeLease(instance){return this.state.storage.transaction(async tx=>{const key='bot:python-runtime',old=await tx.get(key);if(old&&old.expires>Date.now()&&old.instance!==instance)return null;const lease={instance,expires:Date.now()+90000};await tx.put(key,lease);return lease;});}
   async runtimeRelease(instance){return this.state.storage.transaction(async tx=>{const old=await tx.get('bot:python-runtime');if(old?.instance===instance)await tx.delete('bot:python-runtime');});}
   async aiReserve(channel,message){return this.state.storage.transaction(async tx=>{const key='bot:ai-claim:'+channel+':'+message,previous=await tx.get(key);if(previous&&!(previous.status==='generation_failed'&&Date.now()-previous.created_at>15000))return false;const day=new Date().toISOString().slice(0,10),budget=await tx.get('bot:ai-budget')||{day,count:0};if(budget.day!==day){budget.day=day;budget.count=0;}if(budget.count>=100)return false;budget.count++;await tx.put('bot:ai-budget',budget);await tx.put(key,{status:'reserved',created_at:Date.now()});return true;});}
