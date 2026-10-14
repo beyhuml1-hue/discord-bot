@@ -5466,6 +5466,17 @@ async function assignVerifiedRole(userId, serverId, env) {
       if (!role) role = await discord("guilds/" + serverId + "/roles", { method: "POST", headers, body: JSON.stringify({ name: "Verified", color: 9745914, permissions: "0", mentionable: false, hoist: false }) });
     }
     await discord("guilds/" + serverId + "/members/" + userId + "/roles/" + role.id, { method: "PUT", headers });
+    // Once Team lb's existing Verified role is granted, remove the Unverified
+    // onboarding role. This immediately hides the restricted #verify channel.
+    if (String(serverId) === teamLbGuildId) {
+      const unverified = roles.find((r) => !r.managed && String(r.name).toLowerCase() === "unverified");
+      if (unverified && String(unverified.id) !== String(role.id)) {
+        await discord("guilds/" + serverId + "/members/" + userId + "/roles/" + unverified.id, {
+          method: "DELETE",
+          headers
+        });
+      }
+    }
     return true;
   } catch {
     return false;
