@@ -57,21 +57,25 @@ test("Other servers retain their own existing verified role", async () => {
   assert.equal(calls[1].path, `guilds/${other}/members/123456789012345678/roles/${otherRole}`);
 });
 
-test("OAuth callback must reject success when Discord roles are not updated", () => {
+test("OAuth identity is recorded even if website role edit needs Wispbyte fallback", () => {
   const oauthStart = source.indexOf('if (path === "/oauth/callback"');
   const oauthEnd = source.indexOf('if (path === "/api/admin"', oauthStart);
   assert.ok(oauthStart >= 0 && oauthEnd > oauthStart);
   const callback = source.slice(oauthStart, oauthEnd);
   assert.equal((callback.match(/role_granted = await assignVerifiedRole/g) || []).length, 2);
-  assert.equal((callback.match(/if \(!role_granted\) throw fail/g) || []).length, 2);
-  const firstRoleUpdate = callback.indexOf("role_granted = await assignVerifiedRole");
-  const firstDm = callback.indexOf('const channel = await discord("users/@me/channels"');
-  assert.ok(firstRoleUpdate >= 0 && firstRoleUpdate < firstDm);
+  assert.equal((callback.match(/await registry.record\(user, pending.server\)/g) || []).length, 2);
+  assert.equal((callback.match(/if \(!role_granted\) throw fail/g) || []).length, 0);
+  const record = callback.lastIndexOf("await registry.record(user, pending.server)");
+  const roleUpdate = callback.lastIndexOf("role_granted = await assignVerifiedRole");
+  assert.ok(record >= 0 && roleUpdate > record, "Store OAuth record before optional role assignment");
+  assert.match(callback, /if \(role_granted\) try \{/);
 });
 
 test("Verification webpage checks role success rather than trusting the OAuth redirect", () => {
   const client = readFileSync(new URL("../public/app.js", import.meta.url), "utf8");
   assert.match(client, /if\(d\.role_granted!==true\)/);
+  assert.match(client, /Verification processing/);
+  assert.match(client, /api\('me'\)/);
   assert.match(client, /status\(q\.get\('error'\)/);
 });
 
