@@ -56,3 +56,21 @@ test("Other servers retain their own existing verified role", async () => {
   assert.deepEqual(calls.map(({method}) => method), ["GET", "PUT"]);
   assert.equal(calls[1].path, `guilds/${other}/members/123456789012345678/roles/${otherRole}`);
 });
+
+test("OAuth callback must reject success when Discord roles are not updated", () => {
+  const oauthStart = source.indexOf('if (path === "/oauth/callback"');
+  const oauthEnd = source.indexOf('if (path === "/api/admin"', oauthStart);
+  assert.ok(oauthStart >= 0 && oauthEnd > oauthStart);
+  const callback = source.slice(oauthStart, oauthEnd);
+  assert.equal((callback.match(/role_granted = await assignVerifiedRole/g) || []).length, 2);
+  assert.equal((callback.match(/if \(!role_granted\) throw fail/g) || []).length, 2);
+  const firstRoleUpdate = callback.indexOf("role_granted = await assignVerifiedRole");
+  const firstDm = callback.indexOf('const channel = await discord("users/@me/channels"');
+  assert.ok(firstRoleUpdate >= 0 && firstRoleUpdate < firstDm);
+});
+
+test("Verification webpage checks role success rather than trusting the OAuth redirect", () => {
+  const client = readFileSync(new URL("../public/app.js", import.meta.url), "utf8");
+  assert.match(client, /if\(d\.role_granted!==true\)/);
+  assert.match(client, /status\(q\.get\('error'\)/);
+});
