@@ -1,0 +1,282 @@
+/* Animated verification experience — original midnight/purple colours.
+   Motion is cosmetic; Discord OAuth and member permissions are unchanged. */
+
+/* Low-contrast floating aurora in the background. */
+.member-page {
+  position: relative;
+  isolation: isolate;
+  overflow-x: hidden;
+}
+.member-page::before,
+.member-page::after {
+  content: "";
+  position: fixed;
+  z-index: 0;
+  width: min(66vw, 540px);
+  height: min(66vw, 540px);
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: .46;
+  filter: blur(65px);
+  animation: verify-aurora 15s ease-in-out infinite alternate;
+}
+.member-page::before {
+  left: -210px;
+  top: 14%;
+  background: radial-gradient(circle, rgba(106, 75, 232, .38), transparent 68%);
+}
+.member-page::after {
+  right: -220px;
+  bottom: -100px;
+  background: radial-gradient(circle, rgba(149, 99, 249, .32), transparent 70%);
+  animation-delay: -8s;
+  animation-duration: 18s;
+}
+.member-page > header,
+.member-page > main,
+.member-page > footer {
+  position: relative;
+  z-index: 1;
+}
+
+/* Soft arrival, glossy outline, and depth on the existing card. */
+.member-page .verify-card {
+  isolation: isolate;
+  border-color: rgba(163, 136, 250, .34);
+  box-shadow: 0 28px 85px rgba(0, 0, 0, .42), 0 0 42px rgba(122, 87, 240, .1), inset 0 1px rgba(255,255,255,.08);
+  animation: verify-card-in .7s cubic-bezier(.2, .75, .22, 1) both;
+  transition: border-color .3s ease, box-shadow .3s ease;
+}
+.member-page .verify-card:hover {
+  border-color: rgba(180, 157, 255, .5);
+  box-shadow: 0 30px 88px rgba(0,0,0,.47), 0 0 55px rgba(122,87,240,.15), inset 0 1px rgba(255,255,255,.09);
+}
+.member-page .verify-card::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  left: 9%;
+  right: 9%;
+  width: auto;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #9e7cf2, #e0d4ff, #9e7cf2, transparent);
+  background-size: 210% 100%;
+  animation: verify-border-light 6s linear infinite;
+}
+.member-page .verify-card::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  z-index: 0;
+  inset: 0;
+  background: radial-gradient(circle at 78% 0, rgba(159, 126, 251, .11), transparent 49%);
+}
+.member-page .verify-card > * {
+  position: relative;
+  z-index: 1;
+}
+.member-page .verify-symbol {
+  position: relative;
+  display: grid;
+  place-items: center;
+  isolation: isolate;
+  border: 1px solid rgba(169, 143, 255, .35);
+  box-shadow: 0 0 26px rgba(133, 93, 242, .14);
+  animation: verify-logo-float 5s ease-in-out infinite;
+}
+.member-page .verify-symbol::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -11px;
+  border: 1px solid rgba(172, 140, 255, .5);
+  border-radius: 25px;
+  animation: verify-ring 3.8s ease-out infinite;
+}
+.member-page .verify-symbol::after {
+  content: "✦";
+  position: absolute;
+  top: -11px;
+  right: -16px;
+  color: #c6adff;
+  font-size: 18px;
+  text-shadow: 0 0 15px rgba(183, 149, 255, .85);
+  animation: verify-sparkle 3s ease-in-out infinite;
+}
+.member-page .verify-symbol img {
+  position: relative;
+  z-index: 1;
+}
+.member-page .eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #c6b6ff;
+  animation: verify-copy-in .65s .16s both;
+}
+.member-page .eyebrow::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: #aa8eff;
+  box-shadow: 0 0 0 4px rgba(165, 138, 250, .13), 0 0 10px rgba(168,136,255,.65);
+}
+.member-page h1 {
+  animation: verify-copy-in .65s .22s both;
+}
+.member-page #cardCopy {
+  animation: verify-copy-in .65s .3s both;
+}
+.member-page .destination:not([hidden]) {
+  animation: verify-copy-in .45s .12s both;
+}
+.member-page .future-permission {
+  animation: verify-copy-in .65s .36s both;
+}
+.member-page #status { transition: opacity .2s ease; }
+
+/* Gently glowing call-to-action with a directional hover effect. */
+.member-page #verify {
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 54px;
+  border-color: #b99bff;
+  background: linear-gradient(105deg, #7553dc, #a185fb 62%, #8964e9);
+  box-shadow: 0 12px 32px rgba(117, 83, 222, .32);
+  transition: transform .2s ease, box-shadow .2s ease, filter .2s ease;
+}
+.member-page #verify::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-130%) skewX(-22deg);
+  background: linear-gradient(100deg, transparent 12%, rgba(255,255,255,.25) 48%, transparent 80%);
+  transition: transform .75s ease;
+  pointer-events: none;
+}
+.member-page #verify:enabled:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.09);
+  box-shadow: 0 16px 42px rgba(117, 83, 222, .48);
+}
+.member-page #verify:enabled:hover::before,
+.member-page #verify:focus-visible::before {
+  transform: translateX(130%) skewX(-22deg);
+}
+.member-page #verify:enabled:active {
+  transform: translateY(0) scale(.985);
+}
+.member-page #verify:enabled:hover b {
+  transform: translateX(4px);
+}
+.member-page #verify b {
+  transition: transform .22s ease;
+}
+.member-page #verify:focus-visible,
+.member-page .discord-return:focus-visible {
+  outline: 3px solid #d4c1ff;
+  outline-offset: 4px;
+}
+.member-page #verify.is-verifying {
+  cursor: progress;
+  box-shadow: 0 12px 35px rgba(130, 98, 238, .36);
+  opacity: .85;
+}
+.member-page #verify.is-verifying b {
+  font-size: 0;
+  height: 20px;
+  width: 20px;
+  border: 2px solid rgba(255,255,255,.38);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: verify-spin .75s linear infinite;
+}
+.member-page .consent-note {
+  display: block;
+  color: #aaa4bc;
+  animation: verify-copy-in .65s .46s both;
+}
+
+/* Success deserves a quiet, accessible flourish. */
+.member-page .verification-success {
+  border-color: rgba(117, 208, 163, .43);
+}
+.member-page .verification-success .verify-symbol {
+  animation: verify-success-pop .7s cubic-bezier(.18,1.4,.36,1) both;
+}
+.member-page .verification-success .verify-symbol::before {
+  border-color: rgba(125, 220, 172, .6);
+  animation: verify-ring .95s ease-out 2;
+}
+.member-page .verification-success h1 {
+  animation: verify-copy-in .45s ease-out both;
+}
+.member-page .verification-success .discord-return {
+  display: block;
+  text-align: center;
+  transition: transform .2s ease, box-shadow .2s ease;
+  animation: verify-copy-in .5s .18s both;
+}
+.member-page .verification-success .discord-return:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(131, 99, 237, .34);
+}
+
+@keyframes verify-card-in {
+  from { opacity: 0; transform: translateY(24px) scale(.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes verify-copy-in {
+  from { opacity: 0; transform: translateY(9px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes verify-logo-float {
+  0%,100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-6px) rotate(2deg); }
+}
+@keyframes verify-ring {
+  0% { opacity: .62; transform: scale(.82); }
+  75%,100% { opacity: 0; transform: scale(1.32); }
+}
+@keyframes verify-sparkle {
+  0%,100% { opacity: .45; transform: scale(.7) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1.12) rotate(45deg); }
+}
+@keyframes verify-border-light {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+@keyframes verify-aurora {
+  from { transform: translate3d(-30px,-18px,0) scale(.93); }
+  to { transform: translate3d(40px,32px,0) scale(1.08); }
+}
+@keyframes verify-spin { to { transform: rotate(360deg); } }
+@keyframes verify-success-pop {
+  from { opacity: .6; transform: scale(.72) rotate(-10deg); }
+  60% { opacity: 1; transform: scale(1.12) rotate(3deg); }
+  to { transform: scale(1) rotate(0deg); }
+}
+@media (max-width: 680px) {
+  .member-page::before, .member-page::after { width: 360px; height: 360px; filter: blur(75px); opacity: .34; }
+  .member-page .verify-card { border-radius: 19px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .member-page::before, .member-page::after,
+  .member-page .verify-card, .member-page .verify-card::before,
+  .member-page .verify-symbol, .member-page .verify-symbol::before,
+  .member-page .verify-symbol::after, .member-page .eyebrow,
+  .member-page h1, .member-page #cardCopy,
+  .member-page .destination, .member-page .future-permission,
+  .member-page .consent-note, .member-page .verification-success .verify-symbol,
+  .member-page .verification-success h1, .member-page .verification-success .discord-return,
+  .member-page #verify.is-verifying b {
+    animation: none !important;
+  }
+  .member-page #verify, .member-page #verify::before,
+  .member-page #verify b, .member-page .discord-return {
+    transition: none !important;
+  }
+}
