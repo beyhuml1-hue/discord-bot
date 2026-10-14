@@ -5572,14 +5572,14 @@ var VerificationRegistry = class extends DurableObject {
     });
   }
   async record(user, server) {
-    const row = { id: user.id, username: String(user.username || "Discord member"), avatar: user.avatar || null, server_id: server.id, server_name: server.name, verified_at: Date.now(), verification_expires: Date.now() + 180 * 864e5 };
+    const row = { id: user.id, username: String(user.username || "Discord member"), avatar: user.avatar || null, server_id: server.id, server_name: server.name, verified_at: Date.now(), verification_expires: null, verification_lifetime: true };
     await this.state.storage.put("member:" + server.id + ":" + user.id, row);
     return row;
   }
   async verifiedGet(id, server) {
     const row = await this.state.storage.get("member:" + server + ":" + id) || await this.state.storage.get("member:" + id);
     if (!row || row.server_id !== server) return null;
-    return (row.verification_expires || row.verified_at + 180 * 864e5) > Date.now() ? row : null;
+    return row;
   }
   async members() {
     const rows = Array.from((await this.state.storage.list({ prefix: "member:", limit: 1e3 })).values()).sort((a, b) => b.verified_at - a.verified_at);
@@ -5587,12 +5587,12 @@ var VerificationRegistry = class extends DurableObject {
   }
   async tokenGet(id) {
     const r = await this.state.storage.get("token:" + id);
-    if (r && r.consent_expires > Date.now()) return r;
+    if (r && (r.consent_lifetime === true || r.consent_expires > Date.now())) return r;
     if (r) await this.tokenDelete(id);
     return null;
   }
   async tokenSave(id, row) {
-    await this.state.storage.put("token:" + id, { ...row, consented_at: Date.now(), consent_expires: Date.now() + 180 * 864e5, notice_version: 1 });
+    await this.state.storage.put("token:" + id, { ...row, consented_at: Date.now(), consent_expires: null, consent_lifetime: true, notice_version: 2 });
   }
   async tokenUpdate(id, row) {
     return this.state.storage.transaction(async (tx) => {
@@ -5626,7 +5626,7 @@ var VerificationRegistry = class extends DurableObject {
       if (!entries.size) break;
       const expired = [];
       for (const [key, value] of entries) {
-        if (value.consent_expires <= Date.now()) expired.push(key);
+        if (value.consent_lifetime !== true && value.consent_expires <= Date.now()) expired.push(key);
         startAfter = key;
       }
       if (expired.length) await this.state.storage.delete(expired);
@@ -5660,7 +5660,7 @@ var VerificationRegistry = class extends DurableObject {
     const rows = await this.members();
     const permissions = /* @__PURE__ */ new Map();
     for (const id of new Set(rows.map((r) => r.id))) permissions.set(id, await this.tokenGet(id));
-    return rows.map((r) => ({ ...r, transfer_consent: Boolean(permissions.get(r.id)), permission_expires: permissions.get(r.id)?.consent_expires || null }));
+    return rows.map((r) => ({ ...r, verification_lifetime: true, transfer_consent: Boolean(permissions.get(r.id)), permission_expires: permissions.get(r.id)?.consent_expires || null, permission_lifetime: permissions.get(r.id)?.consent_lifetime === true }));
   }
   async throttle(ip) {
     return this.state.storage.transaction(async (tx) => {
@@ -5741,7 +5741,7 @@ var worker_default = { async scheduled(event, env, ctx) {
         throw fail("Verification sync authorization required.", 403);
       }
       const members = (await registry.members())
-        .filter((m) => (m.verification_expires || m.verified_at + 180 * 864e5) > Date.now())
+        .filter((m) => Boolean(m.id))
         .map((m) => ({ id: m.id, server_id: m.server_id, verified_at: m.verified_at }));
       return json({ members, synced_at: Date.now(), source: "verify.lb000.xyz" });
     }

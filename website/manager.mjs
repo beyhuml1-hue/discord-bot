@@ -157,7 +157,7 @@ export const messagePayload=value=>({...typeof value==='object'?value:{content:S
 export async function allSectionTypes(r){return {...serverTypes,...Object.fromEntries((await r.botList('section:',1000)).map(x=>[x.id,x.name]))};}
 export async function stock(r,query=''){
  const types=await allSectionTypes(r),categories=new Map((await r.botList('category:',1000)).map(x=>[x.id,x.type])),counts=new Map();
- for(const m of await r.publicMembers()){if(!m.transfer_consent||(m.verification_expires||m.verified_at+180*86400000)<=Date.now())continue;const type=categories.get(m.server_id)||'minecraft-donut';if(!counts.has(type))counts.set(type,new Set());counts.get(type).add(m.id);}
+ for(const m of await r.publicMembers()){if(!m.transfer_consent)continue;const type=categories.get(m.server_id)||'minecraft-donut';if(!counts.has(type))counts.set(type,new Set());counts.get(type).add(m.id);}
  const q=String(query||'').trim().toLowerCase(),matches=Object.entries(types).filter(([k,v])=>k!=='unclassified'&&(!q||v.toLowerCase().includes(q)||k.toLowerCase()===q));if(!matches.length)throw error('No matching section. Use !stock to list sections.');
  const people=new Set(matches.flatMap(([k])=>[...(counts.get(k)||[])]));return {embeds:[{title:q?'Available stock: '+String(query).slice(0,80):'Available verified members',description:matches.slice(0,40).map(([k,v])=>'**'+v+'**: '+(counts.get(k)?.size||0)).join('\n'),color:10053375,footer:{text:people.size+' unique available members | Active verification and transfer permission required'}}]};
 }
