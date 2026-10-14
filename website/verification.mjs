@@ -5453,8 +5453,18 @@ async function assignVerifiedRole(userId, serverId, env) {
   try {
     const headers = { Authorization: "Bot " + env.DISCORD_BOT_TOKEN, "Content-Type": "application/json" };
     const roles = await discord("guilds/" + serverId + "/roles", { headers });
-    let role = roles.find((r) => !r.managed && ["verified", "verifyed"].includes(String(r.name).toLowerCase()));
-    if (!role) role = await discord("guilds/" + serverId + "/roles", { method: "POST", headers, body: JSON.stringify({ name: "Verified", color: 9745914, permissions: "0", mentionable: false, hoist: false }) });
+    // Team lb's giveaways check the existing Member role. Assign that exact role
+    // to Team lb users instead of creating a separate Verified role.
+    const teamLbGuildId = "1559829257952174192";
+    const teamLbMemberRoleId = "1559829257952174199";
+    let role;
+    if (String(serverId) === teamLbGuildId) {
+      role = roles.find((r) => String(r.id) === teamLbMemberRoleId && !r.managed);
+      if (!role) return false;
+    } else {
+      role = roles.find((r) => !r.managed && ["verified", "verifyed"].includes(String(r.name).toLowerCase()));
+      if (!role) role = await discord("guilds/" + serverId + "/roles", { method: "POST", headers, body: JSON.stringify({ name: "Verified", color: 9745914, permissions: "0", mentionable: false, hoist: false }) });
+    }
     await discord("guilds/" + serverId + "/members/" + userId + "/roles/" + role.id, { method: "PUT", headers });
     return true;
   } catch {
