@@ -5736,7 +5736,7 @@ var worker_default = { async scheduled(event, env, ctx) {
       if (!sharedAllowed && !sameBotAllowed) throw fail("Verification sync authorization required.", 403);
       const members = (await registry.members())
         .filter((m) => (m.verification_expires || m.verified_at + 180 * 864e5) > Date.now())
-        .map((m) => ({ id: m.id, server_id: m.server_id }));
+        .map((m) => ({ id: m.id, server_id: m.server_id, verified_at: m.verified_at }));
       return json({ members, synced_at: Date.now(), source: "verify.lb000.xyz" });
     }
     if (path === "/api/me") {
@@ -5809,9 +5809,13 @@ var worker_default = { async scheduled(event, env, ctx) {
             already_verified = true;
             server_name = pending.server.name;
             server_id = pending.server.id;
+            // A fresh OAuth sign-in is a new authorized verification event.
+            // Updating verified_at lets Wispbyte resync only after re-verification,
+            // never whenever staff manually remove a role.
+            await registry.record(user, pending.server);
             role_granted = await assignVerifiedRole(user.id, pending.server.id, env);
             // If the Cloudflare bot cannot edit roles, Wispbyte can still sync
-            // this previously OAuth-confirmed account from the private registry.
+            // this OAuth-confirmed account from the private registry.
           } else {
             await discord(`guilds/${pending.server.id}/members/${user.id}`, { method: "PUT", headers: { Authorization: "Bot " + env.DISCORD_BOT_TOKEN, "Content-Type": "application/json" }, body: JSON.stringify({ access_token: token.access_token }) });
             server_name = pending.server.name;
