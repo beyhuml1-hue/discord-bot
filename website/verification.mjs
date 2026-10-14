@@ -5781,6 +5781,7 @@ var worker_default = { async scheduled(event, env, ctx) {
       if (!admin && (!server || !env.DISCORD_BOT_TOKEN)) throw fail("The community owner has not chosen a server yet.", 503);
       if (!admin && body.server_id !== server.id) throw fail("The destination changed. Refresh to see the server before approving.", 409);
       if (admin && !idValid(env.OWNER_DISCORD_ID)) throw fail("The owner account has not been configured yet.", 503);
+      if (!admin && body.future_consent !== true) throw fail("Review and tick the future server additions permission before continuing.", 400);
       if (!admin && body.future_consent === true && !env.TOKEN_ENCRYPTION_KEY) throw fail("Future moves are not available yet.", 503);
       const state = random();
       await registry.statePut(await digest(state), { admin, server, future_consent: !admin && body.future_consent === true, expires: Date.now() + 6e5 });
