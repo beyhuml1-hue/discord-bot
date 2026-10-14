@@ -5688,10 +5688,17 @@ async function guilds(env) {
 }
 __name(guilds, "guilds");
 async function selectedServer(registry, env) {
+  // The public home page belongs to Team lb. Do not let an earlier saved
+  // dashboard selection silently send visitors into a different server.
+  // Explicit /?server=... verification links still override this default.
   const saved = await registry.config();
-  if (saved) return saved;
   if (!env.DISCORD_BOT_TOKEN || !env.DISCORD_CLIENT_ID || !env.DISCORD_CLIENT_SECRET || !env.SESSION_SECRET) return null;
-  if (env.DEFAULT_SERVER_ID && env.DEFAULT_SERVER_NAME) return { id: env.DEFAULT_SERVER_ID, name: env.DEFAULT_SERVER_NAME, icon: null };
+  if (env.DEFAULT_SERVER_ID && env.DEFAULT_SERVER_NAME) {
+    return saved && String(saved.id) === String(env.DEFAULT_SERVER_ID)
+      ? saved
+      : { id: env.DEFAULT_SERVER_ID, name: env.DEFAULT_SERVER_NAME, icon: null };
+  }
+  if (saved) return saved;
   const list = await guilds(env);
   if (list.length === 1) return { id: list[0].id, name: list[0].name, icon: list[0].icon || null };
   return null;
