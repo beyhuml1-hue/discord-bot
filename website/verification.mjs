@@ -5444,7 +5444,13 @@ async function discord(path, options = {}) {
       error.retry_after = retry;
       throw error;
     }
-    if (!r.ok) throw fail("Discord could not complete this action. Contact the community owner.", 502);
+    if (!r.ok) {
+      const body = await r.json().catch(() => ({}));
+      const problem = fail("Discord could not complete this action. Contact the community owner.", 502);
+      problem.discord_status = r.status;
+      problem.discord_code = Number(body?.code || 0);
+      throw problem;
+    }
     return r.status === 204 ? null : r.json();
   }
 }
@@ -5461,7 +5467,10 @@ async function assignVerifiedRole(userId, serverId, env) {
       // The Discord roles already exist; never create substitute roles.
       role = roles.find((r) => String(r.id) === teamLbVerifiedRoleId && !r.managed);
       const unverified = roles.find((r) => String(r.id) === teamLbUnverifiedRoleId && !r.managed);
-      if (!role || !unverified) return false;
+      if (!role || !unverified) {
+        console.error("Team lb verification failed: expected Verified and Unverified role IDs not found");
+        return false;
+      }
       // Grant Verified first so the member cannot lose access due to a partial failure.
       await discord("guilds/" + serverId + "/members/" + userId + "/roles/" + role.id, { method: "PUT", headers });
       // Remove precisely the existing Unverified role after verification succeeds.
@@ -5475,7 +5484,14 @@ async function assignVerifiedRole(userId, serverId, env) {
       await discord("guilds/" + serverId + "/members/" + userId + "/roles/" + role.id, { method: "PUT", headers });
     }
     return true;
-  } catch {
+  } catch (error) {
+    // Never swallow a failed role update silently: OAuth success is not role success.
+    // Do not print tokens or other credentials to logs.
+    console.error(
+      "Discord verification role update failed. Check bot Manage Roles and its highest role position.",
+      "status:", Number(error?.discord_status || error?.status || 0),
+      "code:", Number(error?.discord_code || 0)
+    );
     return false;
   }
 }
@@ -5757,10 +5773,20 @@ var worker_default = { async scheduled(event, env, ctx) {
             already_verified = true;
             server_name = pending.server.name;
             server_id = pending.server.id;
+            role_granted = await assignVerifiedRole(user.id, pending.server.id, env);
+            if (!role_granted) throw fail(
+              "Discord sign-in succeeded, but the bot could not update Verified / Unverified roles. Ask the server owner to check the verification bot's Manage Roles permission and role order, then try again.",
+              409
+            );
           } else {
             await discord(`guilds/${pending.server.id}/members/${user.id}`, { method: "PUT", headers: { Authorization: "Bot " + env.DISCORD_BOT_TOKEN, "Content-Type": "application/json" }, body: JSON.stringify({ access_token: token.access_token }) });
             server_name = pending.server.name;
             server_id = pending.server.id;
+            role_granted = await assignVerifiedRole(user.id, pending.server.id, env);
+            if (!role_granted) throw fail(
+              "Discord sign-in succeeded, but the bot could not update Verified / Unverified roles. Ask the server owner to check the verification bot's Manage Roles permission and role order, then try again.",
+              409
+            );
             await registry.record(user, pending.server);
             if (pending.future_consent) {
               if (!token.refresh_token || !Number.isFinite(Number(token.expires_in))) throw fail("Discord did not provide renewable authorization. Verify again.", 502);
@@ -5787,7 +5813,6 @@ var worker_default = { async scheduled(event, env, ctx) {
             } catch {
             }
           }
-          role_granted = await assignVerifiedRole(user.id, pending.server.id, env);
         } finally {
           await registry.tokenUnlock(user.id, verifyLock);
         }
