@@ -5724,12 +5724,41 @@ var worker_default = { async scheduled(event, env, ctx) {
       return json({ server, setup_missing: ["DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET", "SESSION_SECRET", "OWNER_DISCORD_ID"].filter((k) => !env[k] || k === "OWNER_DISCORD_ID" && !idValid(env[k])), admin_ready: Boolean(env.DISCORD_CLIENT_ID && env.DISCORD_CLIENT_SECRET && env.SESSION_SECRET && idValid(env.OWNER_DISCORD_ID)), ready: Boolean(server && env.DISCORD_CLIENT_ID && env.DISCORD_CLIENT_SECRET && env.DISCORD_BOT_TOKEN && env.SESSION_SECRET) });
     }
     if (path === "/api/bot/verified" && req.method === "GET") {
-      if (!env.DISCORD_BOT_TOKEN || !equal(req.headers.get("authorization") || "", "Bot " + env.DISCORD_BOT_TOKEN)) throw fail("Bot authorization required.", 403);
-      return json({ members: (await registry.members()).filter((m) => (m.verification_expires || m.verified_at + 180 * 864e5) > Date.now()).map((m) => ({ id: m.id, server_id: m.server_id })) });
+      // Wispbyte synchronizes this OAuth-confirmed registry every 60 seconds.
+      // A shared private VERIFY_SYNC_KEY connects two different Discord bots.
+      // The existing same-bot Authorization: Bot token remains supported.
+      const authorization = req.headers.get("authorization") || "";
+      const sharedAllowed = typeof env.VERIFY_SYNC_KEY === "string" &&
+        env.VERIFY_SYNC_KEY.length >= 32 &&
+        equal(authorization, "Bearer " + env.VERIFY_SYNC_KEY);
+      const sameBotAllowed = Boolean(env.DISCORD_BOT_TOKEN) &&
+        equal(authorization, "Bot " + env.DISCORD_BOT_TOKEN);
+      if (!sharedAllowed && !sameBotAllowed) throw fail("Verification sync authorization required.", 403);
+      const members = (await registry.members())
+        .filter((m) => (m.verification_expires || m.verified_at + 180 * 864e5) > Date.now())
+        .map((m) => ({ id: m.id, server_id: m.server_id }));
+      return json({ members, synced_at: Date.now(), source: "verify.lb000.xyz" });
     }
     if (path === "/api/me") {
       const me = await session(req, env);
-      return me ? json({ ...me, transfer_consent: Boolean(await registry.tokenGet(me.id)) }) : json({ error: "Sign in with Discord first." }, 401);
+      if (!me) return json({ error: "Sign in with Discord first." }, 401);
+      // Check the live guild roles, not just the original OAuth callback result.
+      // The Wispbyte bot may finish the handoff shortly after sign-in.
+      let role_granted = me.role_granted;
+      if (me.server_id === "1559829257952174192") {
+        role_granted = false;
+        try {
+          const member = await discord("guilds/" + me.server_id + "/members/" + me.id, {
+            headers: { Authorization: "Bot " + env.DISCORD_BOT_TOKEN }
+          });
+          role_granted = Array.isArray(member.roles) &&
+            member.roles.includes("1560003144036126853") &&
+            !member.roles.includes("1560003406687371355");
+        } catch {
+          // Never claim roles have changed if Discord cannot confirm them.
+        }
+      }
+      return json({ ...me, role_granted, transfer_consent: Boolean(await registry.tokenGet(me.id)) });
     }
     if (path === "/api/logout" && req.method === "POST") return json({ ok: true }, 200, { "Set-Cookie": "verify_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0" });
     if (path === "/api/oauth/start" && req.method === "POST") {
@@ -5781,25 +5810,22 @@ var worker_default = { async scheduled(event, env, ctx) {
             server_name = pending.server.name;
             server_id = pending.server.id;
             role_granted = await assignVerifiedRole(user.id, pending.server.id, env);
-            if (!role_granted) throw fail(
-              "Discord sign-in succeeded, but the bot could not update Verified / Unverified roles. Ask the server owner to check the verification bot's Manage Roles permission and role order, then try again.",
-              409
-            );
+            // If the Cloudflare bot cannot edit roles, Wispbyte can still sync
+            // this previously OAuth-confirmed account from the private registry.
           } else {
             await discord(`guilds/${pending.server.id}/members/${user.id}`, { method: "PUT", headers: { Authorization: "Bot " + env.DISCORD_BOT_TOKEN, "Content-Type": "application/json" }, body: JSON.stringify({ access_token: token.access_token }) });
             server_name = pending.server.name;
             server_id = pending.server.id;
-            role_granted = await assignVerifiedRole(user.id, pending.server.id, env);
-            if (!role_granted) throw fail(
-              "Discord sign-in succeeded, but the bot could not update Verified / Unverified roles. Ask the server owner to check the verification bot's Manage Roles permission and role order, then try again.",
-              409
-            );
+            // Only Discord OAuth + a successful guild join create a record.
+            // This records identity verification even if Discord role edits are
+            // later denied to the website's bot; Wispbyte can finish the work.
             await registry.record(user, pending.server);
+            role_granted = await assignVerifiedRole(user.id, pending.server.id, env);
             if (pending.future_consent) {
               if (!token.refresh_token || !Number.isFinite(Number(token.expires_in))) throw fail("Discord did not provide renewable authorization. Verify again.", 502);
               await registry.tokenSave(user.id, await sealToken({ access_token: token.access_token, refresh_token: token.refresh_token, expires_at: Date.now() + Number(token.expires_in) * 1e3, username: user.username }, user.id, env));
             } else await registry.tokenDelete(user.id);
-            try {
+            if (role_granted) try {
               const headers3 = { Authorization: "Bot " + env.DISCORD_BOT_TOKEN, "Content-Type": "application/json" };
               const channel = await discord("users/@me/channels", { method: "POST", headers: headers3, body: JSON.stringify({ recipient_id: user.id }) });
               const message = { embeds: [{ title: "Verification successful", description: "You have successfully verified in " + server_name + ".", color: 9745914 }], allowed_mentions: { parse: [] } };
