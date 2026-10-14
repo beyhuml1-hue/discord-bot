@@ -74,3 +74,29 @@ test("Verification webpage checks role success rather than trusting the OAuth re
   assert.match(client, /if\(d\.role_granted!==true\)/);
   assert.match(client, /status\(q\.get\('error'\)/);
 });
+
+test("Team lb is the default even when an earlier dashboard server was saved", async () => {
+  const start = source.indexOf("async function selectedServer(");
+  const end = source.indexOf('\n__name(selectedServer, "selectedServer");', start);
+  assert.ok(start >= 0 && end > start);
+  const context = { guilds: async () => [] };
+  runInNewContext(
+    source.slice(start, end) + "; this.selectedServer = selectedServer;",
+    context
+  );
+  const server = await context.selectedServer(
+    { config: async () => ({ id: "1553398685587607614", name: "Old server" }) },
+    {
+      DEFAULT_SERVER_ID: guild,
+      DEFAULT_SERVER_NAME: "Donut SMP | Team lb",
+      DISCORD_BOT_TOKEN: "test",
+      DISCORD_CLIENT_ID: "test",
+      DISCORD_CLIENT_SECRET: "test",
+      SESSION_SECRET: "test"
+    },
+  );
+  assert.equal(server.id, guild);
+  assert.equal(server.name, "Donut SMP | Team lb");
+  const wrangler = readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8");
+  assert.match(wrangler, /"DEFAULT_SERVER_ID": "1559829257952174192"/);
+});
