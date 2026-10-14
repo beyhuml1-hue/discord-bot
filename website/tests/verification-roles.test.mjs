@@ -68,7 +68,8 @@ test("OAuth identity is recorded even if website role edit needs Wispbyte fallba
   const record = callback.lastIndexOf("await registry.record(user, pending.server)");
   const roleUpdate = callback.lastIndexOf("role_granted = await assignVerifiedRole");
   assert.ok(record >= 0 && roleUpdate > record, "Store OAuth record before optional role assignment");
-  assert.match(callback, /if \(role_granted\) try \{/);
+  assert.match(callback, /if \(role_granted\) \{/);
+  assert.match(callback, /ctx\.waitUntil\(notify\(\)\)/);
 });
 
 test("Verification webpage checks role success rather than trusting the OAuth redirect", () => {

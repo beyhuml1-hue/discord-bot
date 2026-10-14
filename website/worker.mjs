@@ -39,7 +39,7 @@ export default {
         return redirect(data.url,[...start.headers.getSetCookie(),`bot_login_nonce=${n}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600`]);
       }
       if(u.origin===VERIFY&&u.pathname==='/oauth/callback'){
-        const result=await verification.fetch(req,env);
+        const result=await verification.fetch(req,env,ctx);
         if(result.status===303&&result.headers.get('location')==='/admin'){
           const n=cookie(req,'bot_login_nonce');if(!/^[a-f0-9]{64}$/.test(n))return redirect(BOT);
           const c=result.headers.getSetCookie().find(x=>x.startsWith('verify_session='));if(!c)return json({error:'Sign-in could not finish.'},503);
@@ -49,7 +49,7 @@ export default {
       }
       if(u.origin===VERIFY&&['/admin','/admin/','/admin.html'].includes(u.pathname))return redirect(BOT+'/admin');
       if(u.origin===VERIFY&&u.pathname.startsWith('/api/admin'))return json({error:'Manage members at bot.lb000.xyz.'},403);
-      if(u.origin!==BOT)return verification.fetch(req,env);
+      if(u.origin!==BOT)return verification.fetch(req,env,ctx);
       if(u.pathname==='/auth/finish'){
         const t=u.searchParams.get('ticket')||'';if(!/^[a-f0-9]{64}$/.test(t))return redirect(BOT+'/?error=Sign-in+expired');
         const d=await r.stateTake(await digest('handoff:'+t));if(!d||d.nonce!==cookie(req,'bot_login_nonce'))return redirect(BOT+'/?error=Start+sign-in+again');
@@ -65,7 +65,7 @@ export default {
         if(!env.BOT_DEPLOY_KEY||req.headers.get('authorization')!=='Bearer '+env.BOT_DEPLOY_KEY)return json({error:'Setup authorization required.'},403);
         const result=await configurePrimary(env,r);await checkServerJoins(env,r);return json({...result,gateway:await r.botGet('gateway-status')});
       }
-      if(u.pathname.startsWith('/api/')){const result=await verification.fetch(req,{...env,PUBLIC_ORIGIN:BOT});if(result.ok&&req.method==='POST'&&['/api/admin/transfer','/api/admin/retry'].includes(u.pathname)){const data=await result.clone().json();ctx.waitUntil(notifyTransfer(env,r,data));}return result;}
+      if(u.pathname.startsWith('/api/')){const result=await verification.fetch(req,{...env,PUBLIC_ORIGIN:BOT},ctx);if(result.ok&&req.method==='POST'&&['/api/admin/transfer','/api/admin/retry'].includes(u.pathname)){const data=await result.clone().json();ctx.waitUntil(notifyTransfer(env,r,data));}return result;}
       const a=new URL(req.url);if(u.pathname==='/')a.pathname='/dashboard.html';
       if(u.pathname==='/admin'||u.pathname==='/admin/')a.pathname='/admin.html';
       return assetHeaders(await env.ASSETS.fetch(new Request(a,req)));

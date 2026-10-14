@@ -5716,7 +5716,7 @@ async function selectedServer(registry, env) {
 __name(selectedServer, "selectedServer");
 var worker_default = { async scheduled(event, env, ctx) {
   ctx.waitUntil(env.REGISTRY.getByName("community").purgeExpired());
-}, async fetch(req, env) {
+}, async fetch(req, env, ctx) {
   const url = new URL(req.url), path = url.pathname;
   const registry = env.REGISTRY.getByName("community");
   try {
@@ -5831,7 +5831,8 @@ var worker_default = { async scheduled(event, env, ctx) {
             // later denied to the website's bot; Wispbyte can finish the work.
             await registry.record(user, pending.server);
             role_granted = await assignVerifiedRole(user.id, pending.server.id, env);
-            if (role_granted) try {
+            if (role_granted) {
+              const notify = async () => { try {
               const headers3 = { Authorization: "Bot " + env.DISCORD_BOT_TOKEN, "Content-Type": "application/json" };
               const channel = await discord("users/@me/channels", { method: "POST", headers: headers3, body: JSON.stringify({ recipient_id: user.id }) });
               const message = { embeds: [{ title: "Verification successful", description: "You have successfully verified in " + server_name + ".", color: 9745914 }], allowed_mentions: { parse: [] } };
@@ -5849,7 +5850,10 @@ var worker_default = { async scheduled(event, env, ctx) {
                 await discord("channels/" + channel.id + "/messages", { method: "POST", headers: { Authorization: headers3.Authorization }, body: form });
               } else await discord("channels/" + channel.id + "/messages", { method: "POST", headers: headers3, body: JSON.stringify(message) });
               dm_sent = true;
-            } catch {
+            } catch { /* DMs are optional and never block verification. */ }
+              };
+              if (ctx?.waitUntil) ctx.waitUntil(notify());
+              else await notify();
             }
           }
           // Renew explicit consent even when this server verification is already active.
