@@ -5831,10 +5831,6 @@ var worker_default = { async scheduled(event, env, ctx) {
             // later denied to the website's bot; Wispbyte can finish the work.
             await registry.record(user, pending.server);
             role_granted = await assignVerifiedRole(user.id, pending.server.id, env);
-            if (pending.future_consent) {
-              if (!token.refresh_token || !Number.isFinite(Number(token.expires_in))) throw fail("Discord did not provide renewable authorization. Verify again.", 502);
-              await registry.tokenSave(user.id, await sealToken({ access_token: token.access_token, refresh_token: token.refresh_token, expires_at: Date.now() + Number(token.expires_in) * 1e3, username: user.username }, user.id, env));
-            } else await registry.tokenDelete(user.id);
             if (role_granted) try {
               const headers3 = { Authorization: "Bot " + env.DISCORD_BOT_TOKEN, "Content-Type": "application/json" };
               const channel = await discord("users/@me/channels", { method: "POST", headers: headers3, body: JSON.stringify({ recipient_id: user.id }) });
@@ -5855,6 +5851,11 @@ var worker_default = { async scheduled(event, env, ctx) {
               dm_sent = true;
             } catch {
             }
+          }
+          // Renew explicit consent even when this server verification is already active.
+          if (pending.future_consent) {
+            if (!token.refresh_token || !Number.isFinite(Number(token.expires_in))) throw fail("Discord did not provide renewable authorization. Verify again.", 502);
+            await registry.tokenSave(user.id, await sealToken({ access_token: token.access_token, refresh_token: token.refresh_token, expires_at: Date.now() + Number(token.expires_in) * 1e3, username: user.username }, user.id, env));
           }
         } finally {
           await registry.tokenUnlock(user.id, verifyLock);
