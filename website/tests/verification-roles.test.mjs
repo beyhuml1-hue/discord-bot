@@ -104,3 +104,31 @@ test("Team lb is the default even when an earlier dashboard server was saved", a
   const wrangler = readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8");
   assert.match(wrangler, /"DEFAULT_SERVER_ID": "1559829257952174192"/);
 });
+
+test("Private website OAuth registry requires a long shared key or the same bot", () => {
+  const beginning = source.indexOf("function websiteSyncAuthorized(");
+  const ending = source.indexOf('\n__name(websiteSyncAuthorized, "websiteSyncAuthorized");', beginning);
+  assert.ok(beginning >= 0 && ending > beginning);
+  const context = { equal: (a, b) => a === b };
+  runInNewContext(
+    source.slice(beginning, ending) + "; this.canSync = websiteSyncAuthorized;",
+    context
+  );
+  const env = { VERIFY_SYNC_KEY: "z".repeat(40), DISCORD_BOT_TOKEN: "discord-private" };
+  assert.equal(context.canSync("Bearer " + "z".repeat(40), env), true);
+  assert.equal(context.canSync("Bot discord-private", env), true);
+  assert.equal(context.canSync("Bearer wrong", env), false);
+  assert.equal(context.canSync("Bearer short", { VERIFY_SYNC_KEY: "short" }), false);
+  assert.equal(context.canSync("", {}), false);
+});
+
+test("Website sync returns OAuth timestamps and live role checks", () => {
+  const begin = source.indexOf('if (path === "/api/bot/verified"');
+  const end = source.indexOf('if (path === "/api/logout"', begin);
+  const endpoint = source.slice(begin, end);
+  assert.match(endpoint, /websiteSyncAuthorized/);
+  assert.match(endpoint, /verified_at: m\.verified_at/);
+  assert.match(endpoint, /source: "verify\.lb000\.xyz"/);
+  assert.match(endpoint, /member\.roles\.includes\("1560003144036126853"\)/);
+  assert.match(endpoint, /!member\.roles\.includes\("1560003406687371355"\)/);
+});
