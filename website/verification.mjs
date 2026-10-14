@@ -5687,6 +5687,16 @@ async function guilds(env) {
   return discord("users/@me/guilds", { headers: { Authorization: "Bot " + env.DISCORD_BOT_TOKEN } });
 }
 __name(guilds, "guilds");
+function websiteSyncAuthorized(authorization, env) {
+  const sharedAllowed = typeof env.VERIFY_SYNC_KEY === "string" &&
+    env.VERIFY_SYNC_KEY.length >= 32 &&
+    equal(authorization, "Bearer " + env.VERIFY_SYNC_KEY);
+  const sameBotAllowed = Boolean(env.DISCORD_BOT_TOKEN) &&
+    equal(authorization, "Bot " + env.DISCORD_BOT_TOKEN);
+  return sharedAllowed || sameBotAllowed;
+}
+__name(websiteSyncAuthorized, "websiteSyncAuthorized");
+
 async function selectedServer(registry, env) {
   // The public home page belongs to Team lb. Do not let an earlier saved
   // dashboard selection silently send visitors into a different server.
@@ -5727,13 +5737,9 @@ var worker_default = { async scheduled(event, env, ctx) {
       // Wispbyte synchronizes this OAuth-confirmed registry every 60 seconds.
       // A shared private VERIFY_SYNC_KEY connects two different Discord bots.
       // The existing same-bot Authorization: Bot token remains supported.
-      const authorization = req.headers.get("authorization") || "";
-      const sharedAllowed = typeof env.VERIFY_SYNC_KEY === "string" &&
-        env.VERIFY_SYNC_KEY.length >= 32 &&
-        equal(authorization, "Bearer " + env.VERIFY_SYNC_KEY);
-      const sameBotAllowed = Boolean(env.DISCORD_BOT_TOKEN) &&
-        equal(authorization, "Bot " + env.DISCORD_BOT_TOKEN);
-      if (!sharedAllowed && !sameBotAllowed) throw fail("Verification sync authorization required.", 403);
+      if (!websiteSyncAuthorized(req.headers.get("authorization") || "", env)) {
+        throw fail("Verification sync authorization required.", 403);
+      }
       const members = (await registry.members())
         .filter((m) => (m.verification_expires || m.verified_at + 180 * 864e5) > Date.now())
         .map((m) => ({ id: m.id, server_id: m.server_id, verified_at: m.verified_at }));
